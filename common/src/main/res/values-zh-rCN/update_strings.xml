@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_section">软件更新</string>
+    <string name="update_auto_check">自动检查更新</string>
+    <string name="update_auto_description">DiPlay 启动后最多每天检查一次 GitHub Release；不会静默安装。</string>
+    <string name="update_check_now">检查软件更新</string>
+    <string name="update_checking">正在检查更新…</string>
+    <string name="update_up_to_date">当前已经是最新版本。</string>
+    <string name="update_available">发现 DiPlay 新版本 %1$s</string>
+    <string name="update_no_notes">当前版本没有更新说明。</string>
+    <string name="update_parked_notice">请停车并断开 CarPlay 后安装，Android 系统会要求您确认安装。</string>
+    <string name="update_download">下载更新</string>
+    <string name="update_downloading">正在下载并验证 APK…</string>
+    <string name="update_install_title">安装 DiPlay %1$s</string>
+    <string name="update_install_notice">APK 已通过 SHA-256、包名与应用签名校验。是否打开 Android 系统安装程序？</string>
+    <string name="update_install">打开安装程序</string>
+    <string name="update_permission_title">允许安装应用更新</string>
+    <string name="update_permission_message">Android 需要授权 DiPlay 安装 APK。请在系统设置中允许，再返回 DiPlay。</string>
+    <string name="update_open_settings">打开系统设置</string>
+    <string name="update_disconnect_first">请停车并断开 CarPlay 后再下载或安装软件更新。</string>
+    <string name="update_install_unavailable">当前车机无法打开系统 APK 安装程序。</string>
+    <string name="update_failed">更新失败</string>
+    <string name="update_verifying">正在校验 APK 的 SHA-256、包名及签名…</string>
+    <string name="update_downloading_phase">正在下载已签名的更新安装包</string>
+    <string name="update_manual_saved">已额外保存可供手动安装的验证副本：\n%1$s</string>
+    <string name="update_manual_install_help">车机未能通过系统安装入口打开 APK。已验证的安装包保存在：\n\n%1$s\n\n请停车后使用车机文件管理器进入下载目录，点击该 APK 手动安装。如果车机没有安装器，可在电脑上使用 ADB 或车机厂商提供的安装工具。</string>
+    <string name="update_manual_install_no_copy">车机未能打开系统 APK 安装程序，公共下载目录也不可用。请通过电脑从 DiPlay 官方 GitHub Release 下载 APK，再使用 ADB 或车机厂商安装工具进行安装。</string>
+    <string name="update_notes_heading">更新内容</string>
+    <string name="update_available_heading">发现新版本</string>
+    <string name="update_available_subtitle">%1$s 可用</string>
+    <string name="update_available_description">包含功能优化与问题修复，推荐立即更新。</string>
+    <string name="update_ready_heading">更新包已准备完成</string>
+    <string name="update_ready_subtitle">%1$s · 下载与验证已完成</string>
+    <string name="update_dialog_subtitle">DiPlay 软件更新</string>
+    <string name="update_progress_step_download">正在下载更新包</string>
+    <string name="update_progress_step_verify">校验签名与 SHA-256 完整性</string>
+    <string name="update_progress_step_prepare">准备安装包</string>
+    <string name="update_preparing">正在准备安装包…</string>
+    <string name="update_continue_background">后台继续</string>
+    <string name="update_tls_unavailable">当前车机无法与更新服务器建立安全的 TLS 连接。请使用其他浏览器或电脑从 DiPlay 官方 GitHub Release 下载 APK，再手动安装。</string>
+</resources>

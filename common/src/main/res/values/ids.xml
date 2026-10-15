@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="launcher_tag_icon" type="id" />
+    <item name="launcher_tag_label" type="id" />
+    <item name="manage_tag_icon" type="id" />
+    <item name="manage_tag_label" type="id" />
+    <item name="manage_tag_check" type="id" />
+    <item name="manage_tag_handle" type="id" />
+</resources>

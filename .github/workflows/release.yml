@@ -1,0 +1,143 @@
+name: Release
+
+# Push a version tag to build a signed standalone APK and publish a GitHub Release.
+# Example: git tag v1.0.0 && git push origin v1.0.0
+#
+# Required repository secrets:
+#   ANDROID_KEYSTORE_BASE64
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#   DIPLAY_AUTH_IDENTITY_PK8_BASE64
+#   DIPLAY_AUTH_CERTIFICATE_P7B_BASE64
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # Default packages include the removed "tools" package; install only platform-tools.
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?ANDROID_HOME is not set on the runner}"
+          yes | sdkmanager --licenses >/dev/null || true
+          # API 37 is published as platforms;android-37.0 (directory android-37.0).
+          sdkmanager "platforms;android-37.0" "build-tools;36.0.0" "ndk;25.2.9519653"
+          if [[ -d "$ANDROID_HOME/platforms/android-37.0" && ! -e "$ANDROID_HOME/platforms/android-37" ]]; then
+            ln -sfn android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> "$GITHUB_ENV"
+
+      - name: Materialize signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_KEYSTORE_BASE64:-}" || { echo "::error::Missing secret ANDROID_KEYSTORE_BASE64"; exit 1; }
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Materialize offline MFi runtime assets
+        env:
+          DIPLAY_AUTH_IDENTITY_PK8_BASE64: ${{ secrets.DIPLAY_AUTH_IDENTITY_PK8_BASE64 }}
+          DIPLAY_AUTH_CERTIFICATE_P7B_BASE64: ${{ secrets.DIPLAY_AUTH_CERTIFICATE_P7B_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "${DIPLAY_AUTH_IDENTITY_PK8_BASE64:-}" || { echo "::error::Missing secret DIPLAY_AUTH_IDENTITY_PK8_BASE64"; exit 1; }
+          test -n "${DIPLAY_AUTH_CERTIFICATE_P7B_BASE64:-}" || { echo "::error::Missing secret DIPLAY_AUTH_CERTIFICATE_P7B_BASE64"; exit 1; }
+          assets="$RUNNER_TEMP/runtime-assets/offline-mfi"
+          mkdir -p "$assets"
+          echo "$DIPLAY_AUTH_IDENTITY_PK8_BASE64" | base64 -d > "$assets/identity.pk8"
+          echo "$DIPLAY_AUTH_CERTIFICATE_P7B_BASE64" | base64 -d > "$assets/certificate.p7b"
+          echo "DIPLAY_AUTH_ASSETS_DIR=$RUNNER_TEMP/runtime-assets" >> "$GITHUB_ENV"
+
+      # Pinned native libopus is restored from xiph/opus by prepare-libopus.py
+      # (see scripts/prepare-libopus.py). It is git-ignored, so generate it here.
+      - name: Prepare native libopus sources
+        run: python3 scripts/prepare-libopus.py
+
+      - name: Read release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG=$(python3 -c "import json; print(json.load(open('site/config.json')).get('tag',''))" 2>/dev/null || true)
+            [[ -n "$TAG" ]] || { echo "::error::site/config.json missing 'tag'"; exit 1; }
+          fi
+          VERSION="${TAG#v}"
+          APK_NAME="DiPlay-v${VERSION}-release.apk"
+          if [[ -f site/config.json ]]; then
+            cfg_apk=$(python3 -c "import json; print(json.load(open('site/config.json')).get('apk_asset',''))")
+            if [[ -n "$cfg_apk" ]]; then APK_NAME="$cfg_apk"; fi
+          fi
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          python3 - "$VERSION" "$NOTES_FILE" <<'PY'
+          import re, sys
+          version, out_path = sys.argv[1], sys.argv[2]
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          match = re.search(
+              rf"(?ms)^## {re.escape(version)}\s*\n(.*?)(?=^## |\Z)",
+              text,
+          )
+          if not match:
+              raise SystemExit(f"CHANGELOG.md has no section '## {version}' for tag v{version}")
+          body = match.group(1).strip()
+          open(out_path, "w", encoding="utf-8").write(f"## DiPlay {version}\n\n{body}\n")
+          PY
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed standalone release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon :mobile:assembleStandaloneRelease
+          mkdir -p dist
+          cp mobile/build/outputs/apk/release/mobile-release.apk "dist/${{ steps.meta.outputs.apk_name }}"
+          (
+            cd dist
+            sha256sum "${{ steps.meta.outputs.apk_name }}" | tee "${{ steps.meta.outputs.apk_name }}.sha256"
+          )
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Retagging reuses the same version; drop any prior Release so assets refresh.
+          gh release delete "${{ steps.meta.outputs.tag }}" --yes 2>/dev/null || true
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            --title "DiPlay ${{ steps.meta.outputs.version }}" \
+            --notes-file "${{ steps.meta.outputs.notes_file }}" \
+            "dist/${{ steps.meta.outputs.apk_name }}" \
+            "dist/${{ steps.meta.outputs.apk_name }}.sha256"
