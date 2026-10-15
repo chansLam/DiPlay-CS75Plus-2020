@@ -39,6 +39,7 @@ release-signing.properties
 *.p12
 *.pfx
 *.pem
+!common/src/main/res/raw/update_ca_bundle.pem
 *.key
 *.apk
 *.aab
